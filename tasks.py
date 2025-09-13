@@ -1,66 +1,61 @@
 import os
-from file_utils import convert_docx_to_pdf, convert_docx_to_csv, convert_csv_to_pdf, convert_pdf_to_csv, compress_file
+from file_utils import convert_docx_to_pdf, convert_docx_to_csv, convert_pdf_to_csv, convert_csv_to_pdf, compress_file
 
 def get_file_format(file_path):
     _, ext = os.path.splitext(file_path)
     return ext.lower().replace(".", "")
 
-def parse_task(text):
-    text = text.lower()
-    formats = ["pdf", "csv", "docx", "txt"]
-    from_format = None
-    to_format = None
-    actions = []
+def parse_task(task_text):
+    task_text = task_text.lower()
+    action = ""
+    if "convert" in task_text and "pdf" in task_text and "csv" in task_text:
+        action = "pdf_to_csv"
+    elif "convert" in task_text and "docx" in task_text and "pdf" in task_text:
+        action = "docx_to_pdf"
+    elif "convert" in task_text and "docx" in task_text and "csv" in task_text:
+        action = "docx_to_csv"
+    elif "convert" in task_text and "csv" in task_text and "pdf" in task_text:
+        action = "csv_to_pdf"
+    elif "compress" in task_text:
+        action = "compress"
+    elif "convert" in task_text and "and compress" in task_text:
+        if "docx" in task_text and "pdf" in task_text:
+            action = "docx_to_pdf_compress"
+        elif "pdf" in task_text and "csv" in task_text:
+            action = "pdf_to_csv_compress"
+    return action
 
-    if "convert" in text or "change" in text or "बदल" in text:
-        actions.append("convert")
-    if "compress" in text or "zip" in text:
-        actions.append("compress")
+def execute_task(input_file, task):
+    ext = get_file_format(input_file.name)
+    output_file = f"files/{input_file.name.split('.')[0]}_converted"
+    os.makedirs("files", exist_ok=True)
 
-    mentioned_formats = []
-    for fmt in formats:
-        if fmt in text:
-            mentioned_formats.append(fmt)
+    if task == "docx_to_pdf":
+        output_file += ".pdf"
+        return convert_docx_to_pdf(input_file, output_file)
+    elif task == "docx_to_csv":
+        output_file += ".csv"
+        return convert_docx_to_csv(input_file, output_file)
+    elif task == "pdf_to_csv":
+        output_file += ".csv"
+        return convert_pdf_to_csv(input_file, output_file)
+    elif task == "csv_to_pdf":
+        output_file += ".pdf"
+        return convert_csv_to_pdf(input_file, output_file)
+    elif task == "compress":
+        output_file = f"files/{input_file.name.split('.')[0]}.zip"
+        return compress_file(input_file, output_file)
+    elif task == "docx_to_pdf_compress":
+        pdf_file = f"{output_file}.pdf"
+        compress_file(input_file, f"files/{input_file.name.split('.')[0]}.zip")
+        convert_docx_to_pdf(input_file, pdf_file)
+        compress_file(pdf_file, f"files/{input_file.name.split('.')[0]}_final.zip")
+        return f"✅ Docx converted and compressed."
+    elif task == "pdf_to_csv_compress":
+        csv_file = f"{output_file}.csv"
+        convert_pdf_to_csv(input_file, csv_file)
+        compress_file(csv_file, f"files/{input_file.name.split('.')[0]}_final.zip")
+        return f"✅ PDF converted and compressed."
+    else:
+        return "❌ Task not supported."
 
-    if len(mentioned_formats) >= 2:
-        from_format = mentioned_formats[0]
-        to_format = mentioned_formats[1]
-    elif len(mentioned_formats) == 1:
-        from_format = mentioned_formats[0]
-
-    for fmt in formats:
-        if f"into {fmt}" in text or f"to {fmt}" in text or f"in {fmt}" in text:
-            to_format = fmt
-
-    if to_format == "doc":
-        to_format = "docx"
-    if from_format == "doc":
-        from_format = "docx"
-
-    return from_format, to_format, actions
-
-def execute_tasks(file_path, from_format, to_format, actions):
-    results = []
-    current_file = file_path
-    base, ext = os.path.splitext(file_path)
-
-    if "convert" in actions and from_format and to_format:
-        output_file = f"{base}_converted.{to_format}"
-        if from_format == "docx" and to_format == "pdf":
-            results.append(convert_docx_to_pdf(current_file, output_file))
-        elif from_format == "docx" and to_format == "csv":
-            results.append(convert_docx_to_csv(current_file, output_file))
-        elif from_format == "csv" and to_format == "pdf":
-            results.append(convert_csv_to_pdf(current_file, output_file))
-        elif from_format == "pdf" and to_format == "csv":
-            results.append(convert_pdf_to_csv(current_file, output_file))
-        else:
-            results.append(f"❌ Conversion from {from_format} to {to_format} not supported yet.")
-        current_file = output_file
-
-    if "compress" in actions:
-        zip_file = f"{base}_compressed.zip"
-        results.append(compress_file(current_file, zip_file))
-        current_file = zip_file
-
-    return results, current_file
